@@ -2,7 +2,7 @@ import io
 from dataclasses import dataclass
 
 import mediapipe as mp
-from PIL import Image
+from PIL import Image, ImageDraw
 
 
 @dataclass
@@ -65,6 +65,33 @@ class VideoProcessor:
         h = min(h, height - y)
 
         return ROI(x=x, y=y, width=w, height=h, confidence=float(detection.score[0]))
+
+    def draw_roi(self, image: Image.Image, roi: ROI) -> Image.Image:
+        annotated = image.copy()
+        draw = ImageDraw.Draw(annotated)
+
+        x0, y0 = roi.x, roi.y
+        x1, y1 = roi.x + roi.width, roi.y + roi.height
+
+        # outer dark border for contrast on any background
+        draw.rectangle([x0 - 1, y0 - 1, x1 + 1, y1 + 1], outline=(0, 0, 0), width=1)
+        # main ROI rectangle — bright green
+        draw.rectangle([x0, y0, x1, y1], outline=(0, 255, 80), width=2)
+
+        # confidence label
+        label = f"{roi.confidence:.0%}"
+        draw.text((x0 + 4, y0 + 4), label, fill=(0, 255, 80))
+
+        return annotated
+
+    def process_frame(self, raw_bytes: bytes) -> tuple[bytes, ROI | None]:
+        image = self.decode_frame(raw_bytes)
+        roi = self.detect_face(image)
+
+        if roi:
+            image = self.draw_roi(image, roi)
+
+        return self.encode_frame(image), roi
 
 
 # singleton
